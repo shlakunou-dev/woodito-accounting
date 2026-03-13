@@ -145,6 +145,8 @@ body {
 .btn-sync-h:hover { background: rgba(255,255,255,0.25); }
 .btn-sync-h.primary { background: rgba(74,222,128,0.2); border-color: rgba(74,222,128,0.4); }
 .btn-sync-h.primary:hover { background: rgba(74,222,128,0.35); }
+.btn-restore { font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: rgba(255,255,255,0.35); cursor: pointer; transition: all 0.2s; font-family: inherit; white-space: nowrap; }
+.btn-restore:hover { background: rgba(239,68,68,0.15); border-color: rgba(239,68,68,0.4); color: rgba(255,255,255,0.8); }
 
 /* Company Card */
 .company-card {
@@ -649,6 +651,7 @@ body {
     </div>
     <button class="btn-sync-h" onclick="loadFromGitHub()">↓ Загрузить</button>
     <button class="btn-sync-h primary" id="btnSave" onclick="saveToGitHub()">💾 Сохранить</button>
+    <button class="btn-restore" onclick="restoreTemplate()" title="Восстановить из шаблона">♻️ Откатить</button>
   </div>
 </div>
 
@@ -1214,8 +1217,16 @@ function renderAll() {
 
 renderAll();
 
-// ═══════════ Save / Stats ═══════════
+// ═══════════ Auto-draft (localStorage) ═══════════
 let _unsavedChanges = false;
+let _ghAnswerCount = 0; // сколько ответов было на GitHub при последней загрузке
+
+function autoDraft() {
+  // Сохраняем структуру BRANCHES в localStorage
+  try {
+    localStorage.setItem('draft_branches', JSON.stringify(BRANCHES));
+  } catch(e) { console.warn('autoDraft error:', e); }
+}
 
 function saveAnswer(id, val) {
   localStorage.setItem('q_' + id, val);
@@ -1240,7 +1251,7 @@ function updateStats() {
     total++;
     if ((localStorage.getItem('q_' + q.id) || '').trim()) answered++;
   })));
-  document.getElementById('statsText').textContent = answered + ' / ' + total + ' вопросов';
+  document.getElementById('statsText').textContent = answered + ' / ' + total;
   document.getElementById('progressBar').style.width = (total ? (answered/total*100) : 0) + '%';
 }
 
@@ -1251,49 +1262,119 @@ function collapseAll() { document.querySelectorAll('.branch, .q-group, .context-
 const GH = {
   owner: 'shlakunou-dev',
   repo: 'woodito-accounting',
-  path: 'answers.json',
-  token: ['githu','b_pat','_11B3','7ZSFA','0VDbU','BqkIf','pZs_F','146AJ','jT9ey','mvIn6','Ds8qi','AUAO3','UE3vy','aZAA0','0wt8Q','qpQDC','OW2QC','Hl0HL','uag'].join('')
+  dataPath: 'data.json',
+  templatePath: 'template.json',
+  legacyPath: 'answers.json',
+  token: ['githu','b_pat','_11B3','7ZSFA','0VDbU','BqkIf','pZs_F','146AJ','jT9ey','mvIn6','Ds8qi','AUAO3','UE3vy','aZAA0','0wt8Q','qpQDC','OW2QC','Hl0HL','uag'].join(''),
+  _dataSha: null,
+  _templateSha: null
 };
 
-async function loadFromGitHub() {
+// Вспомогательная: получить файл с GitHub
+async function ghGet(path) {
+  const res = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}`, {
+    headers: { 'Authorization': 'Bearer ' + GH.token, 'Accept': 'application/vnd.github+json' }
+  });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  const content = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+  return { content, sha: data.sha };
+}
+
+// Вспомогательная: записать файл на GitHub
+async function ghPut(path, data, sha, message) {
+  const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+  const body = { message, content };
+  if (sha) body.sha = sha;
+  const res = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${path}`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': 'Bearer ' + GH.token,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const err = await res.json();
+    throw new Error(err.message || 'HTTP ' + res.status);
+  }
+  const result = await res.json();
+  return result.content.sha;
+}
+
+// Собрать текущие ответы из localStorage
+function collectAnswers() {
+  const answers = {};
+  BRANCHES.forEach(b => b.groups.forEach(g => g.questions.forEach(q => {
+    const val = localStorage.getItem('q_' + q.id) || '';
+    if (val.trim()) answers[q.id] = val;
+  })));
+  return answers;
+}
+
+// ═══════════ LOAD ═══════════
+async function loadFromGitHub(isAutoLoad) {
   const dot = document.getElementById('syncDot');
   const txt = document.getElementById('syncText');
   
-  if (!GH.token) {
-    dot.className = 'sync-dot error';
-    txt.textContent = '❌ Токен не настроен';
-    return;
+  // Защита: предупредить если есть несохранённые изменения (не при автозагрузке)
+  if (!isAutoLoad && _unsavedChanges) {
+    if (!confirm('⚠️ У вас есть несохранённые изменения.\nЗагрузить данные с GitHub и перезаписать?')) return;
   }
   
   dot.className = 'sync-dot syncing';
   txt.textContent = '⏳ Загрузка с GitHub...';
   
   try {
-    const res = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`, {
-      headers: { 'Authorization': 'Bearer ' + GH.token, 'Accept': 'application/vnd.github+json' }
-    });
+    let ghData = await ghGet(GH.dataPath);
     
-    if (res.status === 404) {
-      // Файл ещё не создан — первый запуск
+    // Миграция: если data.json не существует, попробовать старый answers.json
+    if (!ghData) {
+      const legacy = await ghGet(GH.legacyPath);
+      if (legacy) {
+        // Мигрируем: создаём data.json из хардкодных BRANCHES + старых ответов
+        const migrated = { branches: BRANCHES, answers: legacy.content, savedAt: new Date().toISOString() };
+        GH._dataSha = await ghPut(GH.dataPath, migrated, null, '🔄 Миграция answers.json → data.json');
+        ghData = { content: migrated, sha: GH._dataSha };
+        txt.textContent = '🔄 Миграция завершена';
+      }
+    }
+    
+    if (!ghData) {
       dot.className = 'sync-dot saved';
-      txt.textContent = '📄 Файл answers.json не найден — будет создан при первом сохранении';
+      txt.textContent = '📄 Данные не найдены — будут созданы при первом сохранении';
       return;
     }
     
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    GH._dataSha = ghData.sha;
+    const remote = ghData.content;
     
-    const data = await res.json();
-    GH._sha = data.sha; // Нужен для обновления файла
+    // Загрузить структуру (branches) из GitHub
+    if (remote.branches && Array.isArray(remote.branches) && remote.branches.length > 0) {
+      BRANCHES.length = 0;
+      remote.branches.forEach(b => BRANCHES.push(b));
+    }
     
-    const answers = JSON.parse(atob(data.content));
+    // MERGE ответов: не перезаписывать непустые локальные ответы
     let loaded = 0;
-    for (const [id, val] of Object.entries(answers)) {
-      localStorage.setItem('q_' + id, val);
-      loaded++;
+    if (remote.answers) {
+      _ghAnswerCount = Object.keys(remote.answers).length;
+      for (const [id, val] of Object.entries(remote.answers)) {
+        const localVal = localStorage.getItem('q_' + id) || '';
+        if (isAutoLoad && localVal.trim()) {
+          // При автозагрузке: не затираем локальные ответы
+          continue;
+        }
+        localStorage.setItem('q_' + id, val);
+        loaded++;
+      }
     }
     
     // Обновить UI
     renderAll();
+    autoDraft();
     
     _unsavedChanges = false;
     dot.className = 'sync-dot saved';
@@ -1305,71 +1386,51 @@ async function loadFromGitHub() {
   }
 }
 
+// ═══════════ SAVE ═══════════
 async function saveToGitHub() {
   const dot = document.getElementById('syncDot');
   const txt = document.getElementById('syncText');
   const btn = document.getElementById('btnSave');
-  
-  if (!GH.token) {
-    dot.className = 'sync-dot error';
-    txt.textContent = '❌ Токен не настроен';
-    return;
-  }
   
   dot.className = 'sync-dot syncing';
   txt.textContent = '⏳ Сохранение на GitHub...';
   btn.disabled = true;
   
   try {
-    // Собираем все ответы
-    const answers = {};
-    BRANCHES.forEach(b => b.groups.forEach(g => g.questions.forEach(q => {
-      const val = localStorage.getItem('q_' + q.id) || '';
-      if (val.trim()) answers[q.id] = val;
-    })));
+    const answers = collectAnswers();
+    const answerCount = Object.keys(answers).length;
     
-    const content = btoa(unescape(encodeURIComponent(JSON.stringify(answers, null, 2))));
+    // Защита: предупредить если ответов стало значительно меньше
+    if (_ghAnswerCount > 0 && answerCount < _ghAnswerCount * 0.5) {
+      if (!confirm(`⚠️ Вы сохраняете ${answerCount} ответов (было ${_ghAnswerCount}).\nЭто значительно меньше. Продолжить?`)) {
+        dot.className = 'sync-dot unsaved';
+        txt.textContent = '⚠️ Сохранение отменено';
+        btn.disabled = false;
+        return;
+      }
+    }
     
     // Получить текущий sha (если не знаем)
-    if (!GH._sha) {
+    if (!GH._dataSha) {
       try {
-        const check = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`, {
-          headers: { 'Authorization': 'Bearer ' + GH.token, 'Accept': 'application/vnd.github+json' }
-        });
-        if (check.ok) {
-          const d = await check.json();
-          GH._sha = d.sha;
-        }
-      } catch(e) { /* файл не существует — создадим новый */ }
+        const check = await ghGet(GH.dataPath);
+        if (check) GH._dataSha = check.sha;
+      } catch(e) {}
     }
     
-    const body = {
-      message: `📊 Обновлены ответы (${Object.keys(answers).length} шт.)`,
-      content: content
+    const payload = {
+      branches: BRANCHES,
+      answers: answers,
+      savedAt: new Date().toISOString()
     };
-    if (GH._sha) body.sha = GH._sha;
     
-    const res = await fetch(`https://api.github.com/repos/${GH.owner}/${GH.repo}/contents/${GH.path}`, {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'Bearer ' + GH.token,
-        'Accept': 'application/vnd.github+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
+    GH._dataSha = await ghPut(GH.dataPath, payload, GH._dataSha, 
+      `📊 Сохранено (${answerCount} ответов, ${BRANCHES.length} блоков)`);
     
-    if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.message || 'HTTP ' + res.status);
-    }
-    
-    const result = await res.json();
-    GH._sha = result.content.sha;
-    
+    _ghAnswerCount = answerCount;
     _unsavedChanges = false;
     dot.className = 'sync-dot saved';
-    txt.textContent = `✅ Сохранено на GitHub (${Object.keys(answers).length} ответов) — ${new Date().toLocaleTimeString()}`;
+    txt.textContent = `✅ Сохранено (${answerCount} ответов) — ${new Date().toLocaleTimeString()}`;
   } catch (e) {
     dot.className = 'sync-dot error';
     txt.textContent = '❌ Ошибка сохранения: ' + e.message;
@@ -1379,8 +1440,89 @@ async function saveToGitHub() {
   }
 }
 
-// Автозагрузка при открытии страницы
-loadFromGitHub();
+// ═══════════ RESTORE from template ═══════════
+async function restoreTemplate() {
+  if (!confirm('⚠️ Восстановить из шаблона?\n\nВСЕ текущие вопросы и ответы будут ЗАМЕНЕНЫ!\nЭто действие нельзя отменить.')) return;
+  
+  const dot = document.getElementById('syncDot');
+  const txt = document.getElementById('syncText');
+  
+  dot.className = 'sync-dot syncing';
+  txt.textContent = '⏳ Восстановление из шаблона...';
+  
+  try {
+    const tmpl = await ghGet(GH.templatePath);
+    if (!tmpl) {
+      dot.className = 'sync-dot error';
+      txt.textContent = '❌ Шаблон (template.json) не найден';
+      return;
+    }
+    
+    const data = tmpl.content;
+    
+    // Записать шаблон как основные данные
+    if (!GH._dataSha) {
+      try {
+        const check = await ghGet(GH.dataPath);
+        if (check) GH._dataSha = check.sha;
+      } catch(e) {}
+    }
+    
+    GH._dataSha = await ghPut(GH.dataPath, data, GH._dataSha, '♻️ Восстановлено из шаблона');
+    
+    // Загрузить в память
+    if (data.branches && Array.isArray(data.branches)) {
+      BRANCHES.length = 0;
+      data.branches.forEach(b => BRANCHES.push(b));
+    }
+    
+    // Очистить все ответы и загрузить из шаблона
+    Object.keys(localStorage).filter(k => k.startsWith('q_')).forEach(k => localStorage.removeItem(k));
+    if (data.answers) {
+      for (const [id, val] of Object.entries(data.answers)) {
+        localStorage.setItem('q_' + id, val);
+      }
+      _ghAnswerCount = Object.keys(data.answers).length;
+    }
+    
+    renderAll();
+    autoDraft();
+    
+    _unsavedChanges = false;
+    dot.className = 'sync-dot saved';
+    txt.textContent = '✅ Восстановлено из шаблона';
+  } catch (e) {
+    dot.className = 'sync-dot error';
+    txt.textContent = '❌ Ошибка восстановления: ' + e.message;
+    console.error('Restore error:', e);
+  }
+}
+
+// ═══════════ Startup ═══════════
+
+// Восстановить draft из localStorage (мгновенно, до загрузки с GitHub)
+try {
+  const draftBranches = localStorage.getItem('draft_branches');
+  if (draftBranches) {
+    const parsed = JSON.parse(draftBranches);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      BRANCHES.length = 0;
+      parsed.forEach(b => BRANCHES.push(b));
+      renderAll();
+    }
+  }
+} catch(e) { console.warn('Draft restore error:', e); }
+
+// Автозагрузка с GitHub (merge mode)
+loadFromGitHub(true);
+
+// Предупреждение при закрытии с несохранёнными изменениями
+window.addEventListener('beforeunload', function(e) {
+  if (_unsavedChanges) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 // ═══════════ Modal ═══════════
 function openModal(html) {
@@ -1418,6 +1560,7 @@ function doAddQuestion(bi, gi) {
   BRANCHES[bi].groups[gi].questions.push({ id: id || '?', text: txt });
   closeModal();
   renderAll();
+  autoDraft();
 }
 
 function editQuestion(bi, gi, qi) {
@@ -1441,6 +1584,7 @@ function doEditQuestion(bi, gi, qi) {
   q.text = document.getElementById('m_qtxt').value.trim() || q.text;
   closeModal();
   renderAll();
+  autoDraft();
 }
 
 function deleteQuestion(bi, gi, qi) {
@@ -1448,6 +1592,8 @@ function deleteQuestion(bi, gi, qi) {
   if (!confirm(`Удалить вопрос ${q.id}?`)) return;
   BRANCHES[bi].groups[gi].questions.splice(qi, 1);
   renderAll();
+  autoDraft();
+  markUnsaved();
 }
 
 // ═══════════ CRUD: Groups (themes) ═══════════
@@ -1471,6 +1617,7 @@ function doAddGroup(bi) {
   BRANCHES[bi].groups.push({ title, color: BRANCHES[bi].color, questions: [] });
   closeModal();
   renderAll();
+  autoDraft();
 }
 
 function editGroup(bi, gi) {
@@ -1490,6 +1637,7 @@ function doEditGroup(bi, gi) {
   BRANCHES[bi].groups[gi].title = document.getElementById('m_gtitle').value.trim() || BRANCHES[bi].groups[gi].title;
   closeModal();
   renderAll();
+  autoDraft();
 }
 
 function deleteGroup(bi, gi) {
@@ -1497,6 +1645,8 @@ function deleteGroup(bi, gi) {
   if (!confirm(`Удалить тему «${g.title}» и все её вопросы?`)) return;
   BRANCHES[bi].groups.splice(gi, 1);
   renderAll();
+  autoDraft();
+  markUnsaved();
 }
 
 // ═══════════ CRUD: Branches (blocks) ═══════════
@@ -1537,6 +1687,8 @@ function doAddBranch() {
   });
   closeModal();
   renderAll();
+  autoDraft();
+  markUnsaved();
 }
 
 function editBranch(bi) {
@@ -1566,12 +1718,16 @@ function doEditBranch(bi) {
   b.context = document.getElementById('m_bctx').value.trim() || b.context;
   closeModal();
   renderAll();
+  autoDraft();
+  markUnsaved();
 }
 
 function deleteBranch(bi) {
   if (!confirm(`Удалить блок «${BRANCHES[bi].title}» со всеми вопросами?`)) return;
   BRANCHES.splice(bi, 1);
   renderAll();
+  autoDraft();
+  markUnsaved();
 }
 
 // ═══════════ Export ═══════════
