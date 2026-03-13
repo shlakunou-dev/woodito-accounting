@@ -1227,9 +1227,9 @@ function collapseAll() { document.querySelectorAll('.branch, .q-group, .context-
 // ═══════════ GitHub Sync ═══════════
 const GH = {
   owner: 'shlakunou-dev',
-  repo: 'woodito',
-  path: 'docs/accounting/answers.json',
-  token: '' // ← Вставить Personal Access Token (fine-grained, contents:write)
+  repo: 'woodito-accounting',
+  path: 'answers.json',
+  token: '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'
 };
 
 async function loadFromGitHub() {
@@ -1238,7 +1238,7 @@ async function loadFromGitHub() {
   
   if (!GH.token) {
     dot.className = 'sync-dot error';
-    txt.textContent = '❌ Нет GitHub-токена: откройте файл и добавьте токен в GH.token';
+    txt.textContent = '❌ Нажмите 🔑 Токен, чтобы ввести GitHub PAT';
     return;
   }
   
@@ -1289,7 +1289,7 @@ async function saveToGitHub() {
   
   if (!GH.token) {
     dot.className = 'sync-dot error';
-    txt.textContent = '❌ Нет GitHub-токена: откройте файл и добавьте токен в GH.token';
+    txt.textContent = '❌ Нажмите 🔑 Токен, чтобы ввести GitHub PAT';
     return;
   }
   
