@@ -41,7 +41,7 @@ body {
 .header {
   background: linear-gradient(135deg, #3b4578 0%, #2d3560 100%);
   border-bottom: 1px solid var(--border);
-  padding: 12px 40px;
+  padding: 8px 20px;
   position: sticky;
   top: 0;
   z-index: 100;
@@ -49,11 +49,11 @@ body {
   backdrop-filter: blur(12px);
   display: flex;
   align-items: center;
-  gap: 24px;
+  gap: 12px;
   flex-wrap: wrap;
 }
 .header h1 {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
   color: #fff;
   margin: 0;
@@ -85,13 +85,71 @@ body {
   white-space: nowrap;
 }
 .btn:hover { background: rgba(255,255,255,0.25); border-color: rgba(255,255,255,0.4); }
-.btn-danger { border-color: rgba(220,38,38,0.5); color: #fca5a5; }
-.btn-danger:hover { background: rgba(220,38,38,0.3); }
+
+/* Header row 2: sync + progress */
+.header-row2 {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.7);
+  margin-top: 0;
+}
+.header-row2 .sync-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.header-row2 .sync-dot.saved { background: #4ade80; }
+.header-row2 .sync-dot.unsaved { background: #f59e0b; }
+.header-row2 .sync-dot.syncing { background: #818cf8; animation: pulse 1s infinite; }
+.header-row2 .sync-dot.error { background: #f87171; }
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+.header-row2 .sync-text { white-space: nowrap; font-size: 11px; }
+.header-row2 .progress-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-row2 .progress-bar-bg {
+  flex: 1;
+  height: 4px;
+  background: rgba(255,255,255,0.15);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.header-row2 .progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #818cf8, #4ade80);
+  border-radius: 2px;
+  transition: width 0.5s ease;
+}
+.header-row2 .progress-text {
+  font-size: 11px;
+  white-space: nowrap;
+  color: rgba(255,255,255,0.5);
+}
+.btn-sync-h {
+  padding: 3px 10px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.25);
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.btn-sync-h:hover { background: rgba(255,255,255,0.25); }
+.btn-sync-h.primary { background: rgba(74,222,128,0.2); border-color: rgba(74,222,128,0.4); }
+.btn-sync-h.primary:hover { background: rgba(74,222,128,0.35); }
 
 /* Company Card */
 .company-card {
-  margin: 24px 40px;
-  padding: 24px;
+  margin: 16px 20px;
+  padding: 20px;
   background: var(--surface);
   border-radius: 16px;
   border: 1px solid var(--border);
@@ -123,7 +181,7 @@ body {
 
 /* Navigation */
 .nav {
-  margin: 24px 40px;
+  margin: 16px 20px;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -147,7 +205,7 @@ body {
 
 /* Branch sections */
 .branch {
-  margin: 24px 40px;
+  margin: 16px 20px;
   border-radius: 16px;
   border: 1px solid var(--border);
   overflow: hidden;
@@ -374,32 +432,6 @@ body {
 }
 .q-answer textarea::placeholder { color: #9ca3af; }
 
-/* Stats bar */
-.stats {
-  margin: 0 40px 24px;
-  padding: 12px 20px;
-  background: var(--surface);
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  font-size: 13px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-}
-.stats-progress {
-  flex: 1;
-  height: 6px;
-  background: var(--surface2);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.stats-bar {
-  height: 100%;
-  background: linear-gradient(90deg, var(--accent), var(--green));
-  border-radius: 3px;
-  transition: width 0.5s ease;
-}
 
 /* Add/Edit buttons */
 .add-btn {
@@ -534,7 +566,7 @@ body {
 @media print {
   body { background: #fff; color: #000; padding: 0; }
   .header { position: static; background: #3b4578; }
-  .header-actions, .nav, .stats, .add-btn, .add-btn-branch, .edit-actions, .modal-overlay, .context-toggle { display: none !important; }
+  .header-actions, .nav, .stats, .add-btn, .add-btn-branch, .edit-actions, .modal-overlay, .context-toggle, .header-row2 { display: none !important; }
   .branch { break-inside: avoid-page; border: 1px solid #ccc; margin: 12px 20px; }
   .branch-body { background: #fff; }
   .company-card { margin: 12px 20px; background: #fafafa; }
@@ -552,47 +584,44 @@ body {
   .context-wrap.collapsed .context { display: block !important; }
 }
 
-/* Sync indicator */
-.sync-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 40px 16px;
-  padding: 8px 16px;
-  background: var(--surface);
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  font-size: 12px;
-  color: var(--text-dim);
+
+/* ═══ Responsive ═══ */
+@media (max-width: 768px) {
+  .header { padding: 8px 12px; gap: 8px; }
+  .header h1 { font-size: 13px; }
+  .header-meta { gap: 8px; font-size: 11px; }
+  .header-meta span:nth-child(n+3) { display: none; }
+  .header-actions { gap: 4px; }
+  .btn { padding: 4px 8px; font-size: 10px; }
+  .header-row2 { gap: 6px; }
+  .header-row2 .sync-text { font-size: 10px; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+  .btn-sync-h { padding: 3px 8px; font-size: 10px; }
+  .company-card { margin: 12px 12px; padding: 16px; }
+  .company-grid { grid-template-columns: 1fr; }
+  .nav { margin: 12px 12px; }
+  .branch { margin: 12px 12px; }
+  .branch-header { padding: 14px 16px; }
+  .q-card { margin: 8px 10px; }
 }
-.sync-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
+
+@media (max-width: 480px) {
+  .header { padding: 6px 10px; gap: 6px; }
+  .header h1 { font-size: 12px; }
+  .header-meta { display: none; }
+  .header-row2 .sync-text { max-width: 100px; }
+  .header-row2 .progress-wrap { display: none; }
+  .company-card { margin: 8px 8px; padding: 12px; }
+  .nav { margin: 8px 8px; gap: 6px; }
+  .nav-item { font-size: 11px; padding: 6px 10px; }
+  .branch { margin: 8px 8px; border-radius: 12px; }
+  .branch-header { padding: 12px; gap: 8px; }
+  .branch-number { width: 28px; height: 28px; font-size: 13px; }
+  .branch-title { font-size: 14px; }
+  .q-card { margin: 6px 8px; padding: 12px 10px 0; }
+  .q-answer { padding: 0 10px 10px; }
+  .q-answer textarea { font-size: 12px; padding: 8px 10px; }
+  .context { padding: 12px 14px; font-size: 12px; }
 }
-.sync-dot.saved { background: var(--green); }
-.sync-dot.unsaved { background: #f59e0b; }
-.sync-dot.syncing { background: var(--accent); animation: pulse 1s infinite; }
-.sync-dot.error { background: var(--red); }
-@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
-.sync-text { flex: 1; }
-.btn-sync {
-  padding: 5px 14px;
-  border-radius: 6px;
-  border: 1px solid var(--accent);
-  background: var(--accent);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.15s;
-}
-.btn-sync:hover { background: #4a59a8; }
-.btn-sync:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn-sync.outline { background: transparent; color: var(--accent); }
-.btn-sync.outline:hover { background: rgba(91,106,191,0.08); }
 
 </style>
 </head>
@@ -607,28 +636,20 @@ body {
     <span>📋 NIP: 5214147370</span>
   </div>
   <div class="header-actions">
-    <button class="btn" onclick="expandAll()">📖 Развернуть все</button>
-    <button class="btn" onclick="collapseAll()">📕 Свернуть все</button>
-    <button class="btn" onclick="window.print()">🖨️ Печать / PDF</button>
-    <button class="btn" onclick="exportText()">📋 Копировать ответы</button>
-    <button class="btn btn-danger" onclick="if(confirm('Очистить ВСЕ заметки?')){localStorage.clear();location.reload();}">🗑️ Очистить</button>
+    <button class="btn" onclick="expandAll()">📖 Развернуть</button>
+    <button class="btn" onclick="collapseAll()">📕 Свернуть</button>
+    <button class="btn" onclick="window.print()">🖨️ PDF</button>
   </div>
-</div>
-
-<!-- Sync status bar -->
-<div class="sync-bar" id="syncBar">
-  <span class="sync-dot saved" id="syncDot"></span>
-  <span class="sync-text" id="syncText">Загрузка...</span>
-  <button class="btn-sync outline" onclick="loadFromGitHub()">↓ Загрузить</button>
-  <button class="btn-sync" id="btnSave" onclick="saveToGitHub()">💾 Сохранить на GitHub</button>
-</div>
-
-
-<!-- Stats -->
-<div class="stats">
-  <span>Прогресс:</span>
-  <div class="stats-progress"><div class="stats-bar" id="progressBar" style="width:0%"></div></div>
-  <span id="statsText">0 / 0 вопросов</span>
+  <div class="header-row2">
+    <span class="sync-dot saved" id="syncDot"></span>
+    <span class="sync-text" id="syncText">Загрузка...</span>
+    <div class="progress-wrap">
+      <div class="progress-bar-bg"><div class="progress-bar-fill" id="progressBar" style="width:0%"></div></div>
+      <span class="progress-text" id="statsText">0 / 0</span>
+    </div>
+    <button class="btn-sync-h" onclick="loadFromGitHub()">↓ Загрузить</button>
+    <button class="btn-sync-h primary" id="btnSave" onclick="saveToGitHub()">💾 Сохранить</button>
+  </div>
 </div>
 
 <!-- Company Card -->
