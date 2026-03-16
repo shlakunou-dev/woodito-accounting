@@ -1339,10 +1339,13 @@ function renderAll() {
       </div>
       <div class="branch-body">
         <div class="context-wrap collapsed" id="${ctxId}">
-          <button class="context-toggle" onclick="event.stopPropagation();document.getElementById('${ctxId}').classList.toggle('collapsed')">
-            <span class="ctx-arrow">▼</span> 📋 Описание схемы работы
-          </button>
-          <div class="context">${b.context}</div>
+          <div style="display:flex;align-items:center;gap:6px">
+            <button class="context-toggle" style="flex:1" onclick="event.stopPropagation();document.getElementById('${ctxId}').classList.toggle('collapsed')">
+              <span class="ctx-arrow">▼</span> 📋 Описание схемы работы
+            </button>
+            <button class="edit-btn" onclick="event.stopPropagation();editContext(${bi})" title="Редактировать описание" style="margin-right:8px">✏️</button>
+          </div>
+          <div class="context" id="ctxBody_${bi}">${b.context}</div>
         </div>
         ${questionsHTML}
       </div>`;
@@ -1420,6 +1423,34 @@ function updateStats() {
 
 function expandAll() { document.querySelectorAll('.branch, .q-group, .context-wrap').forEach(b => b.classList.remove('collapsed')); }
 function collapseAll() { document.querySelectorAll('.branch, .q-group, .context-wrap').forEach(b => b.classList.add('collapsed')); }
+
+// ═══════════ Edit Context (описание схемы) ═══════════
+function editContext(bi) {
+  const wrap = document.getElementById('ctx_' + bi);
+  wrap.classList.remove('collapsed');
+  const body = document.getElementById('ctxBody_' + bi);
+  const current = BRANCHES[bi].context || '';
+  body.innerHTML = `
+    <textarea id="ctxEdit_${bi}" style="width:100%;min-height:200px;font-family:monospace;font-size:13px;padding:10px;border:2px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--text);resize:vertical">${current.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button onclick="saveContext(${bi})" style="padding:6px 16px;background:var(--green);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600">💾 Сохранить</button>
+      <button onclick="cancelEditContext(${bi})" style="padding:6px 16px;background:var(--border);color:var(--text);border:none;border-radius:6px;cursor:pointer">Отмена</button>
+    </div>`;
+}
+
+function saveContext(bi) {
+  const ta = document.getElementById('ctxEdit_' + bi);
+  BRANCHES[bi].context = ta.value;
+  const body = document.getElementById('ctxBody_' + bi);
+  body.innerHTML = ta.value;
+  autoDraft();
+  markUnsaved();
+}
+
+function cancelEditContext(bi) {
+  const body = document.getElementById('ctxBody_' + bi);
+  body.innerHTML = BRANCHES[bi].context || '';
+}
 
 // ═══════════ GitHub Sync ═══════════
 const GH = {
