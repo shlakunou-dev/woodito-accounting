@@ -1339,13 +1339,15 @@ function renderAll() {
       </div>
       <div class="branch-body">
         <div class="context-wrap collapsed" id="${ctxId}">
-          <div style="display:flex;align-items:center;gap:6px">
-            <button class="context-toggle" style="flex:1" onclick="event.stopPropagation();document.getElementById('${ctxId}').classList.toggle('collapsed')">
-              <span class="ctx-arrow">▼</span> 📋 Описание схемы работы
-            </button>
-            <button class="edit-btn" onclick="event.stopPropagation();editContext(${bi})" title="Редактировать описание" style="margin-right:8px">✏️</button>
+          <button class="context-toggle" onclick="event.stopPropagation();document.getElementById('${ctxId}').classList.toggle('collapsed')">
+            <span class="ctx-arrow">▼</span> 📋 Описание схемы работы
+          </button>
+          <div class="context" id="ctxBody_${bi}">
+            <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+              <button onclick="editContext(${bi})" style="padding:4px 12px;border-radius:6px;border:1px solid var(--accent);background:var(--accent-glow);color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">✏️ Редактировать</button>
+            </div>
+            <div id="ctxContent_${bi}">${b.context}</div>
           </div>
-          <div class="context" id="ctxBody_${bi}">${b.context}</div>
         </div>
         ${questionsHTML}
       </div>`;
@@ -1426,30 +1428,57 @@ function collapseAll() { document.querySelectorAll('.branch, .q-group, .context-
 
 // ═══════════ Edit Context (описание схемы) ═══════════
 function editContext(bi) {
-  const wrap = document.getElementById('ctx_' + bi);
-  wrap.classList.remove('collapsed');
-  const body = document.getElementById('ctxBody_' + bi);
-  const current = BRANCHES[bi].context || '';
-  body.innerHTML = `
-    <textarea id="ctxEdit_${bi}" style="width:100%;min-height:200px;font-family:monospace;font-size:13px;padding:10px;border:2px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--text);resize:vertical">${current.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button onclick="saveContext(${bi})" style="padding:6px 16px;background:var(--green);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600">💾 Сохранить</button>
-      <button onclick="cancelEditContext(${bi})" style="padding:6px 16px;background:var(--border);color:var(--text);border:none;border-radius:6px;cursor:pointer">Отмена</button>
-    </div>`;
+  try {
+    console.log('editContext called, bi=' + bi);
+    var wrap = document.getElementById('ctx_' + bi);
+    if (wrap) wrap.classList.remove('collapsed');
+    var contentDiv = document.getElementById('ctxContent_' + bi);
+    if (!contentDiv) { console.error('ctxContent_' + bi + ' not found'); return; }
+    var current = BRANCHES[bi].context || '';
+    // Создаём textarea
+    var ta = document.createElement('textarea');
+    ta.id = 'ctxEdit_' + bi;
+    ta.style.cssText = 'width:100%;min-height:250px;font-family:monospace;font-size:13px;padding:10px;border:2px solid var(--accent);border-radius:8px;background:var(--surface);color:var(--text);resize:vertical;';
+    ta.value = current;
+    // Кнопки
+    var btns = document.createElement('div');
+    btns.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+    var saveBtn = document.createElement('button');
+    saveBtn.textContent = '💾 Сохранить';
+    saveBtn.style.cssText = 'padding:6px 16px;background:var(--green);color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-family:inherit;';
+    saveBtn.onclick = function() { saveContext(bi); };
+    var cancelBtn = document.createElement('button');
+    cancelBtn.textContent = 'Отмена';
+    cancelBtn.style.cssText = 'padding:6px 16px;background:var(--border);color:var(--text);border:none;border-radius:6px;cursor:pointer;font-family:inherit;';
+    cancelBtn.onclick = function() { cancelEditContext(bi); };
+    btns.appendChild(saveBtn);
+    btns.appendChild(cancelBtn);
+    // Заменяем содержимое
+    contentDiv.innerHTML = '';
+    contentDiv.appendChild(ta);
+    contentDiv.appendChild(btns);
+    ta.focus();
+    console.log('editContext done, textarea created');
+  } catch(e) {
+    console.error('editContext error:', e);
+    alert('Ошибка: ' + e.message);
+  }
 }
 
 function saveContext(bi) {
-  const ta = document.getElementById('ctxEdit_' + bi);
-  BRANCHES[bi].context = ta.value;
-  const body = document.getElementById('ctxBody_' + bi);
-  body.innerHTML = ta.value;
-  autoDraft();
-  markUnsaved();
+  try {
+    var ta = document.getElementById('ctxEdit_' + bi);
+    BRANCHES[bi].context = ta.value;
+    var contentDiv = document.getElementById('ctxContent_' + bi);
+    contentDiv.innerHTML = ta.value;
+    autoDraft();
+    markUnsaved();
+  } catch(e) { console.error('saveContext error:', e); }
 }
 
 function cancelEditContext(bi) {
-  const body = document.getElementById('ctxBody_' + bi);
-  body.innerHTML = BRANCHES[bi].context || '';
+  var contentDiv = document.getElementById('ctxContent_' + bi);
+  contentDiv.innerHTML = BRANCHES[bi].context || '';
 }
 
 // ═══════════ GitHub Sync ═══════════
